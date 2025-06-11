@@ -30,19 +30,50 @@ This method introduces a composite approach to evaluate healthcare accessibility
 * **Administrative Boundaries**: Population attributes
 * **ORS API**: Travel time by road
 
-### 2. **Population Centers via KDE**
+### 2. **Workflow**
 
-* Uses Kernel Density Estimation to determine realistic population centers instead of geometric centroids.
+#### Step 1: Load and Preprocess Administrative Boundaries
 
-### 3. **Healthcare Facility Classification**
+```python
+adm_gdf = gpd.read_file("path_to_admin_boundary.geojson")
+adm_gdf["center_density"] = adm_gdf.geometry.centroid
+```
 
-* Categorized via multilingual tags into: Hospital, Clinic, Ambulatory, FAP, Pharmacy, etc.
+#### Step 2: Extract Residential Buildings
 
-### 4. **Routing Analysis**
+Use OSM or existing shapefile of residential buildings. KDE (Kernel Density Estimation) is then applied to identify true population centers.
 
-* Computes real travel duration using OpenRouteService (ORS) API for walking or driving modes.
+#### Step 3: Calculate KDE-based Population Centers
 
-### 5. **Accessibility Index Formula**
+```python
+# Assuming buildings_gdf is loaded
+centers_gdf = calculate_true_density_centers(adm_gdf, buildings_gdf)
+```
+
+#### Step 4: Extract and Classify Medical Facilities
+
+```python
+med_gdf = get_medical_facilities(adm_gdf)
+```
+
+This uses tags in multiple languages to categorize facilities (e.g., hospital, clinic).
+
+#### Step 5: Compute Travel Routes
+
+```python
+routes_df = calculate_nearest_facilities(centers_gdf, med_gdf)
+```
+
+This will calculate travel time from population centers to facilities using OpenRouteService.
+
+#### Step 6: Prepare Data and Compute Accessibility Index
+
+```python
+routes_df_prepared = prepare_data(routes_df)
+routes_df_prepared['access_index'] = routes_df_prepared.apply(calculate_final_accessibility, axis=1)
+```
+
+This uses a weighted composite score:
 
 ```python
 Accessibility Score =
@@ -52,28 +83,25 @@ Accessibility Score =
 + 0.1 * Legal Urban/Rural Factor
 ```
 
-Each factor is normalized between 0–1.
-
-### 6. **Settlement Classification Function**
+#### Step 7: Visualize and Export Results
 
 ```python
-def get_settlement_type(name):
-    name_lower = str(name).lower()
-    if any(term in name_lower for term in ['urban', 'city', 'город']):
-        return 'urban'
-    elif any(term in name_lower for term in ['village', 'деревня', 'сельское']):
-        return 'rural'
-    else:
-        return 'unknown'
+# Interactive map
+med_map = create_interactive_map(adm_gdf, centers_gdf, med_gdf)
+med_map
+
+# Static plots
+create_healthcare_dashboard(routes_df_prepared)
 ```
 
 ---
 
 ## Outputs
 
-* `routes_df.csv`: all origin-destination pairs with duration and index
-* `access_index`: Final accessibility score (0–100 scale)
-* Maps: Interactive `folium` map, choropleth maps, scatter plots
+* `routes_df.csv`: All origin-destination pairs with duration and accessibility index
+* `access_index`: Composite accessibility score (0–100 scale)
+* `interactive_map.html`: Viewable in browser
+* `healthcare_dashboard.png`: Histograms and scatter plots
 
 ---
 
@@ -88,10 +116,14 @@ pip install osmnx geopandas openrouteservice folium matplotlib seaborn tqdm
 ## Usage Example
 
 ```python
-adm_gdf['center_density'] = adm_gdf.geometry.centroid
-centers_gdf = gpd.GeoDataFrame(adm_gdf, geometry=adm_gdf['center_density'], crs=adm_gdf.crs)
-med_map = create_interactive_map(adm_gdf, centers_gdf, med_gdf)
-med_map
+adm_gdf = gpd.read_file("adm_boundary.geojson")
+buildings_gdf = gpd.read_file("buildings.geojson")
+centers_gdf = calculate_true_density_centers(adm_gdf, buildings_gdf)
+med_gdf = get_medical_facilities(adm_gdf)
+routes_df = calculate_nearest_facilities(centers_gdf, med_gdf)
+routes_df_prepared = prepare_data(routes_df)
+routes_df_prepared['access_index'] = routes_df_prepared.apply(calculate_final_accessibility, axis=1)
+create_healthcare_dashboard(routes_df_prepared)
 ```
 
 ---
@@ -102,4 +134,4 @@ MIT License
 
 ## Authors
 
-Tolmacheva Elizaveta/ ITMO University, IDU
+Tolmacheva Elizaveta / ITMO University / IDU
